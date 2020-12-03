@@ -105,6 +105,7 @@ mod geom;
 mod rasterizer;
 mod stroke;
 mod tests;
+mod borrower;
 
 mod path_builder;
 pub use path_builder::*;
@@ -114,6 +115,8 @@ pub use crate::draw_target::{BlendMode, DrawOptions, DrawTarget, SolidSource, So
 pub use crate::stroke::*;
 
 pub use sw_composite::{Color, Gradient, GradientStop, Image, Spread};
+
+pub(crate) use borrower::Borrower;
 
 pub type IntRect = euclid::default::Box2D<i32>;
 pub type IntPoint = euclid::default::Point2D<i32>;
