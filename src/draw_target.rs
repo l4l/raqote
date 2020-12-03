@@ -340,30 +340,44 @@ fn scaled_tolerance(x: f32, trans: &Transform) -> f32 {
     x / trans.determinant().abs().sqrt()
 }
 
-
-
 /// The main type used for drawing
-pub struct DrawTarget {
+pub struct DrawTarget<'a> {
     width: i32,
     height: i32,
     rasterizer: Rasterizer,
     current_point: Option<Point>,
     first_point: Option<Point>,
-    buf: Vec<u32>,
+    buf: crate::Borrower<'a, [u32]>,
     clip_stack: Vec<Clip>,
     layer_stack: Vec<Layer>,
     transform: Transform,
 }
 
-impl DrawTarget {
-    pub fn new(width: i32, height: i32) -> DrawTarget {
+impl<'x> DrawTarget<'x> {
+    pub fn from_buf(width: i32, height: i32, buf: &'x mut [u32]) -> Self {
+        assert_eq!(buf.len(), (width * height) as usize);
+
         DrawTarget {
             width,
             height,
             current_point: None,
             first_point: None,
             rasterizer: Rasterizer::new(width, height),
-            buf: vec![0; (width * height) as usize],
+            buf: crate::Borrower::borrowed(buf),
+            clip_stack: Vec::new(),
+            layer_stack: Vec::new(),
+            transform: Transform::identity(),
+        }
+    }
+
+    pub fn new(width: i32, height: i32) -> Self {
+        DrawTarget {
+            width,
+            height,
+            current_point: None,
+            first_point: None,
+            rasterizer: Rasterizer::new(width, height),
+            buf: crate::Borrower::owned(vec![0; (width * height) as usize]),
             clip_stack: Vec::new(),
             layer_stack: Vec::new(),
             transform: Transform::identity(),
@@ -379,20 +393,20 @@ impl DrawTarget {
     }
 
     /// Use a previously used vector for the bitmap and extend it to the given size(if needed)
-    pub fn from_vec(width: i32, height: i32, mut vec: Vec<u32>) -> DrawTarget{
-        vec.resize((width*height) as usize, 0);
+    pub fn from_vec(width: i32, height: i32, mut vec: Vec<u32>) -> Self {
+        vec.resize((width * height) as usize, 0);
         DrawTarget {
             width,
             height,
             current_point: None,
             first_point: None,
             rasterizer: Rasterizer::new(width, height),
-            buf: vec,
+            buf: crate::Borrower::owned(vec),
             clip_stack: Vec::new(),
             layer_stack: Vec::new(),
-            transform: Transform::identity()
+            transform: Transform::identity(),
+        }
     }
-}
 
     /// sets a transform that will be applied to all drawing operations
     pub fn set_transform(&mut self, transform: &Transform) {
@@ -1046,7 +1060,7 @@ impl DrawTarget {
 
     /// Take ownership of the buffer backing the DrawTarget
     pub fn into_vec(self) -> Vec<u32> {
-        self.buf
+        self.buf.into_owned()
     }
 
     /// Saves the current pixel to a png file at `path`
@@ -1062,7 +1076,7 @@ impl DrawTarget {
         let mut writer = encoder.write_header()?;
         let mut output = Vec::with_capacity(self.buf.len() * 4);
 
-        for pixel in &self.buf {
+        for pixel in self.buf.iter() {
             let a = (pixel >> 24) & 0xffu32;
             let mut r = (pixel >> 16) & 0xffu32;
             let mut g = (pixel >> 8) & 0xffu32;
